@@ -955,7 +955,11 @@ const Board = (() => {
     document.body.classList.toggle('compact', isCompact());
     const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
     const compact = document.body.classList.contains('compact');
-    const availW = document.documentElement.clientWidth, availH = vh - (compact ? 0 : bar.offsetHeight) - (compact ? 0 : 8);
+    const top = compact ? 0 : bar.offsetHeight;
+    // iOS Safari 的布局视口可能比可见视口高：容器按可见高度定位，避免画面下沉被裁
+    wrap.style.top = top + 'px'; wrap.style.height = Math.max(100, vh - top) + 'px'; wrap.style.bottom = 'auto';
+    if (window.visualViewport && window.visualViewport.offsetTop) window.scrollTo(0, 0);
+    const availW = document.documentElement.clientWidth, availH = vh - top - (compact ? 0 : 8);
     let scale = Math.min(availW / VIEW_W, availH / VIEW_H);
     if (scale >= 1) scale = Math.floor(scale * 2) / 2; else scale = Math.max(0.25, scale);   // 小屏铺满宽度
     canvas.width = Math.round(VIEW_W * scale); canvas.height = Math.round(VIEW_H * scale);
