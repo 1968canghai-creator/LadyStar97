@@ -14,6 +14,9 @@
   const audioRing = new Float32Array(44100); let ringW = 0, ringR = 0, ringCount = 0;
   const frameAudio = new Float32Array(735);
   const settings = { autoStop: false, cardFace: true, maxBet80: true };
+  // 管理模式：地址带 ?admin 才显示菜单（机台设定、洗分、开关、存档管理等）；普通访客只有上分和游戏按键
+  const ADMIN = new URLSearchParams(location.search).has('admin');
+  if (ADMIN) document.body.classList.add('admin');
 
   // ---- 工具 ----
   const b64ToBytes = b64 => { const s = atob(b64); const a = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a; };
@@ -189,9 +192,9 @@
     if (e.repeat) { if (e.code in KEYS) e.preventDefault(); return; }
     switch (e.code) {
       case 'F2': board.keyInFrames = 8; e.preventDefault(); return;
-      case 'F3': board.keyOutFrames = 8; e.preventDefault(); return;
-      case 'F4': $('svcSetting').checked = !$('svcSetting').checked; board.svcSetting = $('svcSetting').checked; e.preventDefault(); return;
-      case 'F5': $('svcAccount').checked = !$('svcAccount').checked; board.svcAccount = $('svcAccount').checked; e.preventDefault(); return;
+      case 'F3': if (ADMIN) { board.keyOutFrames = 8; e.preventDefault(); } return;
+      case 'F4': if (ADMIN) { $('svcSetting').checked = !$('svcSetting').checked; board.svcSetting = $('svcSetting').checked; e.preventDefault(); } return;
+      case 'F5': if (ADMIN) { $('svcAccount').checked = !$('svcAccount').checked; board.svcAccount = $('svcAccount').checked; e.preventDefault(); } return;
       case 'F11': toggleFullscreen(); e.preventDefault(); return;
     }
     if (e.code in KEYS) { initAudio(); keysDown.add(e.code); board.pressButton(KEYS[e.code]); e.preventDefault(); }
@@ -209,6 +212,7 @@
   // ---- 菜单 ----
   function buildMenus() {
     $('keyIn').onclick = () => { board.keyInFrames = 8; };
+    $('keyInBar').onclick = () => { initAudio(); board.keyInFrames = 8; };
     $('keyOut').onclick = () => { board.keyOutFrames = 8; };
     $('svcSetting').onchange = e => { board.svcSetting = e.target.checked; };
     $('svcAccount').onchange = e => { board.svcAccount = e.target.checked; };
@@ -218,7 +222,7 @@
     $('softReset').onclick = () => { board.softReset(); saveNvram(); status('已软复位'); };
     $('fullscreen').onclick = toggleFullscreen;
     $('landscape').onclick = landscapeFullscreen;
-    $('fab').onclick = () => $('menu').classList.toggle('open');
+    $('fab').onclick = () => { if (ADMIN) $('menu').classList.toggle('open'); };
     $('exportDat').onclick = () => download('LDST97_F.DAT', board.saveNvram());
     $('exportSet').onclick = () => download('设定.txt', new TextEncoder().encode(settingsText()));
     $('importBtn').onclick = () => $('filepick').click();
@@ -245,7 +249,7 @@
     function refreshRaw() { rawInputs.forEach((inp, i) => { inp.value = board.dip[i].toString(16).padStart(2, '0'); }); }
     function refreshFields() { [...dipBox.querySelectorAll('select')].forEach((sel, i) => { sel.value = dipGet(DIP_FIELDS[i], board.dip); }); }
     $('dipDefault').onclick = () => { board.dip = Board.DEFAULT_DIP; saveSettings(); board.softReset(); saveNvram(); refreshRaw(); refreshFields(); status('已恢复默认拨码并复位'); };
-    $('menuBtn').onclick = () => $('menu').classList.toggle('open');
+    $('menuBtn').onclick = () => { if (ADMIN) $('menu').classList.toggle('open'); };
     $('helpBtn').onclick = () => $('help').classList.toggle('hidden');
     $('helpClose').onclick = () => $('help').classList.add('hidden');
   }

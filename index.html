@@ -31,6 +31,7 @@
   #help table { border-collapse: collapse; width: 100%; margin: 8px 0; }
   #help td { border-bottom: 1px solid var(--border); padding: 4px 6px; vertical-align: top; }
   .hidden { display: none !important; }
+  body:not(.admin) .admin, body:not(.admin) #fab { display: none !important; }
   @media (max-width: 600px) { #bar h1 { display: none; } #status { display: none; } }
   /* 手机横屏 / 全屏：收起顶栏，画面铺满，左上角留一个半透明菜单钮 */
   #fab { display: none; position: fixed; left: calc(8px + env(safe-area-inset-left, 0px)); top: calc(8px + env(safe-area-inset-top, 0px)); z-index: 6; width: 42px; height: 42px; border-radius: 21px; border: 2px solid var(--accent); background: rgba(30,30,30,.8); color: var(--accent); font-size: 22px; line-height: 38px; text-align: center; cursor: pointer; box-shadow: 0 0 6px rgba(0,0,0,.6); }
@@ -44,7 +45,8 @@
 <body>
 <div id="bar">
   <h1>明星97 水果机</h1>
-  <button id="menuBtn">菜单</button>
+  <button id="menuBtn" class="admin">菜单</button>
+  <button id="keyInBar">上分 (F2)</button>
   <button id="helpBtn">按键说明</button>
   <span id="status">正在加载…</span>
 </div>
@@ -88,8 +90,8 @@
     <tr><td>得分</td><td>小键盘 0，或 T</td></tr>
     <tr><td>開始</td><td>小键盘 Enter / Enter / 空格</td></tr>
     <tr><td>押</td><td>小键盘 +，或 B</td></tr>
-    <tr><td>上分 / 洗分</td><td>F2 / F3</td></tr>
-    <tr><td>设置开关 / 账目开关</td><td>F4 / F5（设置开关打开时可看原版「開關設定說明」画面）</td></tr>
+    <tr><td>上分</td><td>F2，或顶栏「上分」</td></tr>
+    <tr class="admin"><td>洗分 / 设置开关 / 账目开关</td><td>F3 / F4 / F5（设置开关打开时可看原版「開關設定說明」画面）</td></tr>
     <tr><td>全屏</td><td>F11</td></tr>
   </table>
   <p>玩法：先上分（F2），按「押」加押分到最低押分以上，按「開始」转动；中奖后等 TAKE SCORE / DOUBLE UP 闪动时按「比倍」猜大小或按「得分」收分。</p>
@@ -849,6 +851,9 @@ const Board = (() => {
   const audioRing = new Float32Array(44100); let ringW = 0, ringR = 0, ringCount = 0;
   const frameAudio = new Float32Array(735);
   const settings = { autoStop: false, cardFace: true, maxBet80: true };
+  // 管理模式：地址带 ?admin 才显示菜单（机台设定、洗分、开关、存档管理等）；普通访客只有上分和游戏按键
+  const ADMIN = new URLSearchParams(location.search).has('admin');
+  if (ADMIN) document.body.classList.add('admin');
 
   // ---- 工具 ----
   const b64ToBytes = b64 => { const s = atob(b64); const a = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a; };
@@ -1024,9 +1029,9 @@ const Board = (() => {
     if (e.repeat) { if (e.code in KEYS) e.preventDefault(); return; }
     switch (e.code) {
       case 'F2': board.keyInFrames = 8; e.preventDefault(); return;
-      case 'F3': board.keyOutFrames = 8; e.preventDefault(); return;
-      case 'F4': $('svcSetting').checked = !$('svcSetting').checked; board.svcSetting = $('svcSetting').checked; e.preventDefault(); return;
-      case 'F5': $('svcAccount').checked = !$('svcAccount').checked; board.svcAccount = $('svcAccount').checked; e.preventDefault(); return;
+      case 'F3': if (ADMIN) { board.keyOutFrames = 8; e.preventDefault(); } return;
+      case 'F4': if (ADMIN) { $('svcSetting').checked = !$('svcSetting').checked; board.svcSetting = $('svcSetting').checked; e.preventDefault(); } return;
+      case 'F5': if (ADMIN) { $('svcAccount').checked = !$('svcAccount').checked; board.svcAccount = $('svcAccount').checked; e.preventDefault(); } return;
       case 'F11': toggleFullscreen(); e.preventDefault(); return;
     }
     if (e.code in KEYS) { initAudio(); keysDown.add(e.code); board.pressButton(KEYS[e.code]); e.preventDefault(); }
@@ -1044,6 +1049,7 @@ const Board = (() => {
   // ---- 菜单 ----
   function buildMenus() {
     $('keyIn').onclick = () => { board.keyInFrames = 8; };
+    $('keyInBar').onclick = () => { initAudio(); board.keyInFrames = 8; };
     $('keyOut').onclick = () => { board.keyOutFrames = 8; };
     $('svcSetting').onchange = e => { board.svcSetting = e.target.checked; };
     $('svcAccount').onchange = e => { board.svcAccount = e.target.checked; };
@@ -1053,7 +1059,7 @@ const Board = (() => {
     $('softReset').onclick = () => { board.softReset(); saveNvram(); status('已软复位'); };
     $('fullscreen').onclick = toggleFullscreen;
     $('landscape').onclick = landscapeFullscreen;
-    $('fab').onclick = () => $('menu').classList.toggle('open');
+    $('fab').onclick = () => { if (ADMIN) $('menu').classList.toggle('open'); };
     $('exportDat').onclick = () => download('LDST97_F.DAT', board.saveNvram());
     $('exportSet').onclick = () => download('设定.txt', new TextEncoder().encode(settingsText()));
     $('importBtn').onclick = () => $('filepick').click();
@@ -1080,7 +1086,7 @@ const Board = (() => {
     function refreshRaw() { rawInputs.forEach((inp, i) => { inp.value = board.dip[i].toString(16).padStart(2, '0'); }); }
     function refreshFields() { [...dipBox.querySelectorAll('select')].forEach((sel, i) => { sel.value = dipGet(DIP_FIELDS[i], board.dip); }); }
     $('dipDefault').onclick = () => { board.dip = Board.DEFAULT_DIP; saveSettings(); board.softReset(); saveNvram(); refreshRaw(); refreshFields(); status('已恢复默认拨码并复位'); };
-    $('menuBtn').onclick = () => $('menu').classList.toggle('open');
+    $('menuBtn').onclick = () => { if (ADMIN) $('menu').classList.toggle('open'); };
     $('helpBtn').onclick = () => $('help').classList.toggle('hidden');
     $('helpClose').onclick = () => $('help').classList.add('hidden');
   }
