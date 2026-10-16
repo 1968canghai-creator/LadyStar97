@@ -32,6 +32,12 @@
   #help td { border-bottom: 1px solid var(--border); padding: 4px 6px; vertical-align: top; }
   .hidden { display: none !important; }
   @media (max-width: 600px) { #bar h1 { display: none; } #status { display: none; } }
+  /* 手机横屏 / 全屏：收起顶栏，画面铺满，左上角留一个半透明菜单钮 */
+  #fab { display: none; position: absolute; left: 6px; top: 6px; z-index: 6; width: 34px; height: 34px; border-radius: 17px; border: 1px solid #666; background: rgba(40,40,40,.55); color: #ddd; font-size: 18px; line-height: 32px; text-align: center; cursor: pointer; }
+  body.compact #bar { display: none; }
+  body.compact #wrap, body.compact #menu, body.compact #drop, body.compact #help { top: 0; }
+  body.compact #fab { display: block; }
+  #menu label.chk input { flex: none; }
 </style>
 </head>
 <body>
@@ -42,6 +48,7 @@
   <span id="status">正在加载…</span>
 </div>
 <div id="wrap"><canvas id="screen" width="1024" height="768"></canvas></div>
+<div id="fab" title="菜单">☰</div>
 
 <div id="menu">
   <h2>机台</h2>
@@ -51,7 +58,8 @@
   <label class="chk"><input type="checkbox" id="autoStop"> 快速自动停轮（非原版行为）</label>
   <label class="chk"><input type="checkbox" id="cardFace"> 比倍翻牌显示完整牌面（启用 ROM 内置牌面子程序）</label>
   <label class="chk"><input type="checkbox" id="maxBet80"> 最高押分「80」档真正限制在 80（原版可押到 99）</label>
-  <div class="row"><button id="softReset">软复位（保存并重启主板）</button><button id="fullscreen">全屏 (F11)</button></div>
+  <div class="row"><button id="softReset">软复位（保存并重启主板）</button><button id="fullscreen">全屏 (F11)</button><button id="landscape">横屏全屏（手机）</button></div>
+  <small>手机：横过来或点「横屏全屏」，顶栏会自动收起，左上角 ☰ 打开菜单。iPhone 不支持自动转向，请手动旋转。</small>
 
   <h2>机台设定</h2>
   <small>与原版一样，改动后主板复位才生效：这里改完自动复位。</small>

@@ -110,10 +110,17 @@
     ctx.drawImage(off, 0, 0, 512, 256, 0, 0, canvas.width, canvas.height);
   }
 
-  // ---- 尺寸：最近邻整数 / 0.5 倍步进 ----
+  // ---- 尺寸：最近邻整数 / 0.5 倍步进；矮窗口（手机横屏/全屏）收起顶栏 ----
+  function isCompact() {
+    const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    return !!document.fullscreenElement || (vh < 520 && window.innerWidth > vh);
+  }
   function resize() {
     const wrap = $('wrap'), bar = $('bar');
-    const availW = wrap.clientWidth, availH = window.innerHeight - bar.offsetHeight - 8;
+    document.body.classList.toggle('compact', isCompact());
+    const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    const compact = document.body.classList.contains('compact');
+    const availW = document.documentElement.clientWidth, availH = vh - (compact ? 0 : bar.offsetHeight) - (compact ? 0 : 8);
     let scale = Math.min(availW / VIEW_W, availH / VIEW_H);
     if (scale >= 1) scale = Math.floor(scale * 2) / 2; else scale = Math.max(0.25, scale);   // 小屏铺满宽度
     canvas.width = Math.round(VIEW_W * scale); canvas.height = Math.round(VIEW_H * scale);
@@ -121,6 +128,9 @@
     if (board) present();
   }
   window.addEventListener('resize', resize);
+  window.addEventListener('orientationchange', () => setTimeout(resize, 300));
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
+  document.addEventListener('fullscreenchange', () => setTimeout(resize, 100));
 
   // ---- 声音 ----
   function initAudio() {
@@ -186,6 +196,11 @@
   window.addEventListener('blur', () => { if (board) { board.buttonHeld.fill(false); keysDown.clear(); } });
 
   function toggleFullscreen() { if (!document.fullscreenElement) document.documentElement.requestFullscreen?.(); else document.exitFullscreen?.(); }
+  async function landscapeFullscreen() {
+    try { await document.documentElement.requestFullscreen?.({ navigationUI: 'hide' }); } catch { }
+    try { await screen.orientation?.lock?.('landscape'); } catch { }   // iOS 不支持，忽略
+    $('menu').classList.remove('open'); setTimeout(resize, 300);
+  }
 
   // ---- 菜单 ----
   function buildMenus() {
@@ -198,6 +213,8 @@
     $('maxBet80').checked = settings.maxBet80; $('maxBet80').onchange = e => { settings.maxBet80 = e.target.checked; applySettings(); saveSettings(); };
     $('softReset').onclick = () => { board.softReset(); saveNvram(); status('已软复位'); };
     $('fullscreen').onclick = toggleFullscreen;
+    $('landscape').onclick = landscapeFullscreen;
+    $('fab').onclick = () => $('menu').classList.toggle('open');
     $('exportDat').onclick = () => download('LDST97_F.DAT', board.saveNvram());
     $('exportSet').onclick = () => download('设定.txt', new TextEncoder().encode(settingsText()));
     $('importBtn').onclick = () => $('filepick').click();
