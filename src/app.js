@@ -61,7 +61,7 @@
     board = new Board(exp, b64ToBytes(BUTTONS_B64));
     // 存档：浏览器里的 > 同目录原版 LDST97_F.DAT > 空档
     let dat = null; const saved = lsGet(LS.dat);
-    if (saved) dat = b64ToBytes(saved); else dat = await fetchFirst(DAT_URLS);
+    if (saved) dat = b64ToBytes(saved); else if (ADMIN) dat = await fetchFirst(DAT_URLS);   // 访客不用原版旧账，从 0 分冷启动后自动送分
     board.loadNvram(dat);
     loadSettings(); applySettings(); buildMenus();
     hideDrop(); running = true; lastTime = performance.now(); acc = 0;
@@ -97,8 +97,22 @@
   }
   let frameTotal = 0;
   window.LDST = { get board() { return board; }, get frames() { return frameTotal; } };   // 调试用
+  // ---- 访客自动送分：积分（0x808C 起 4 字节 BCD）为 0 时连按上分直到 ≥ 10000 ----
+  const GRANT = 10000; let grantTarget = 0, grantCooldown = 0;
+  function creditValue() { const m = board.mem; let v = 0; for (let i = 0; i < 4; i++) { const b = m[0x808c + i]; v = v * 100 + (b >> 4) * 10 + (b & 15); } return v; }
+  function autoCredit() {
+    if (frameTotal < 240) return;               // 等主板启动完
+    if (grantCooldown > 0) { grantCooldown--; return; }
+    const c = creditValue();
+    if (grantTarget === 0 && c === 0) grantTarget = GRANT;
+    if (grantTarget > 0) {
+      if (c >= grantTarget) { grantTarget = 0; status('已自动送 ' + GRANT + ' 分'); return; }
+      board.keyInFrames = 8; grantCooldown = 45;
+    }
+  }
   function stepFrame() {
     frameTotal++;
+    if (!ADMIN) autoCredit();
     board.runFrame();
     board.ay.render(frameAudio, 0, 735);
     if (audioCtx) { for (let i = 0; i < 735 && ringCount < audioRing.length; i++) { audioRing[ringW] = frameAudio[i]; ringW = (ringW + 1) % audioRing.length; ringCount++; } }
@@ -191,7 +205,7 @@
     if (!board || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     if (e.repeat) { if (e.code in KEYS) e.preventDefault(); return; }
     switch (e.code) {
-      case 'F2': board.keyInFrames = 8; e.preventDefault(); return;
+      case 'F2': if (ADMIN) { board.keyInFrames = 8; e.preventDefault(); } return;
       case 'F3': if (ADMIN) { board.keyOutFrames = 8; e.preventDefault(); } return;
       case 'F4': if (ADMIN) { $('svcSetting').checked = !$('svcSetting').checked; board.svcSetting = $('svcSetting').checked; e.preventDefault(); } return;
       case 'F5': if (ADMIN) { $('svcAccount').checked = !$('svcAccount').checked; board.svcAccount = $('svcAccount').checked; e.preventDefault(); } return;

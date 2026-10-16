@@ -46,7 +46,7 @@
 <div id="bar">
   <h1>明星97 水果机</h1>
   <button id="menuBtn" class="admin">菜单</button>
-  <button id="keyInBar">上分 (F2)</button>
+  <button id="keyInBar" class="admin">上分 (F2)</button>
   <button id="helpBtn">按键说明</button>
   <span id="status">正在加载…</span>
 </div>
@@ -90,7 +90,8 @@
     <tr><td>得分</td><td>小键盘 0，或 T</td></tr>
     <tr><td>開始</td><td>小键盘 Enter / Enter / 空格</td></tr>
     <tr><td>押</td><td>小键盘 +，或 B</td></tr>
-    <tr><td>上分</td><td>F2，或顶栏「上分」</td></tr>
+    <tr><td>积分</td><td>进入时自动给 10000 分，打完自动再给 10000</td></tr>
+    <tr class="admin"><td>上分</td><td>F2，或顶栏「上分」</td></tr>
     <tr class="admin"><td>洗分 / 设置开关 / 账目开关</td><td>F3 / F4 / F5（设置开关打开时可看原版「開關設定說明」画面）</td></tr>
     <tr><td>全屏</td><td>F11</td></tr>
   </table>
@@ -898,7 +899,7 @@ const Board = (() => {
     board = new Board(exp, b64ToBytes(BUTTONS_B64));
     // 存档：浏览器里的 > 同目录原版 LDST97_F.DAT > 空档
     let dat = null; const saved = lsGet(LS.dat);
-    if (saved) dat = b64ToBytes(saved); else dat = await fetchFirst(DAT_URLS);
+    if (saved) dat = b64ToBytes(saved); else if (ADMIN) dat = await fetchFirst(DAT_URLS);   // 访客不用原版旧账，从 0 分冷启动后自动送分
     board.loadNvram(dat);
     loadSettings(); applySettings(); buildMenus();
     hideDrop(); running = true; lastTime = performance.now(); acc = 0;
@@ -934,8 +935,22 @@ const Board = (() => {
   }
   let frameTotal = 0;
   window.LDST = { get board() { return board; }, get frames() { return frameTotal; } };   // 调试用
+  // ---- 访客自动送分：积分（0x808C 起 4 字节 BCD）为 0 时连按上分直到 ≥ 10000 ----
+  const GRANT = 10000; let grantTarget = 0, grantCooldown = 0;
+  function creditValue() { const m = board.mem; let v = 0; for (let i = 0; i < 4; i++) { const b = m[0x808c + i]; v = v * 100 + (b >> 4) * 10 + (b & 15); } return v; }
+  function autoCredit() {
+    if (frameTotal < 240) return;               // 等主板启动完
+    if (grantCooldown > 0) { grantCooldown--; return; }
+    const c = creditValue();
+    if (grantTarget === 0 && c === 0) grantTarget = GRANT;
+    if (grantTarget > 0) {
+      if (c >= grantTarget) { grantTarget = 0; status('已自动送 ' + GRANT + ' 分'); return; }
+      board.keyInFrames = 8; grantCooldown = 45;
+    }
+  }
   function stepFrame() {
     frameTotal++;
+    if (!ADMIN) autoCredit();
     board.runFrame();
     board.ay.render(frameAudio, 0, 735);
     if (audioCtx) { for (let i = 0; i < 735 && ringCount < audioRing.length; i++) { audioRing[ringW] = frameAudio[i]; ringW = (ringW + 1) % audioRing.length; ringCount++; } }
@@ -1028,7 +1043,7 @@ const Board = (() => {
     if (!board || e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
     if (e.repeat) { if (e.code in KEYS) e.preventDefault(); return; }
     switch (e.code) {
-      case 'F2': board.keyInFrames = 8; e.preventDefault(); return;
+      case 'F2': if (ADMIN) { board.keyInFrames = 8; e.preventDefault(); } return;
       case 'F3': if (ADMIN) { board.keyOutFrames = 8; e.preventDefault(); } return;
       case 'F4': if (ADMIN) { $('svcSetting').checked = !$('svcSetting').checked; board.svcSetting = $('svcSetting').checked; e.preventDefault(); } return;
       case 'F5': if (ADMIN) { $('svcAccount').checked = !$('svcAccount').checked; board.svcAccount = $('svcAccount').checked; e.preventDefault(); } return;
