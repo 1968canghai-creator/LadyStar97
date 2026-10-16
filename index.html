@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>明星97 水果机</title>
 <meta name="description" content="明星97 水果机（LADYSTAR97）网页版模拟器：复用原版 LDST97_F.EXP 显示资源与 Z80 程序，存档保存在浏览器里。">
 <style>
@@ -33,7 +33,8 @@
   .hidden { display: none !important; }
   @media (max-width: 600px) { #bar h1 { display: none; } #status { display: none; } }
   /* 手机横屏 / 全屏：收起顶栏，画面铺满，左上角留一个半透明菜单钮 */
-  #fab { display: none; position: absolute; left: 6px; top: 6px; z-index: 6; width: 34px; height: 34px; border-radius: 17px; border: 1px solid #666; background: rgba(40,40,40,.55); color: #ddd; font-size: 18px; line-height: 32px; text-align: center; cursor: pointer; }
+  #fab { display: none; position: fixed; left: calc(8px + env(safe-area-inset-left, 0px)); top: calc(8px + env(safe-area-inset-top, 0px)); z-index: 6; width: 42px; height: 42px; border-radius: 21px; border: 2px solid var(--accent); background: rgba(30,30,30,.8); color: var(--accent); font-size: 22px; line-height: 38px; text-align: center; cursor: pointer; box-shadow: 0 0 6px rgba(0,0,0,.6); }
+  body.compact #menu { padding-left: calc(12px + env(safe-area-inset-left, 0px)); }
   body.compact #bar { display: none; }
   body.compact #wrap, body.compact #menu, body.compact #drop, body.compact #help { top: 0; }
   body.compact #fab { display: block; }
