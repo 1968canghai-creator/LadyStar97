@@ -39,10 +39,14 @@
 
   // ---- 启动 ----
   async function fetchBytes(url) { const r = await fetch(url, { cache: 'no-store' }); if (!r.ok) throw new Error(r.status); return new Uint8Array(await r.arrayBuffer()); }
+  // 资源文件查找顺序：同目录 → 同站点的 LadyStar97EXP 仓库（GitHub Pages）→ 浏览器里保存过的
+  const EXP_URLS = ['LDST97_F.EXP', '../LadyStar97EXP/LDST97_F.EXP', 'https://1968canghai-creator.github.io/LadyStar97EXP/LDST97_F.EXP'];
+  const DAT_URLS = ['LDST97_F.DAT', '../LadyStar97EXP/LDST97_F.DAT', 'https://1968canghai-creator.github.io/LadyStar97EXP/LDST97_F.DAT'];
+  async function fetchFirst(urls) { for (const u of urls) { try { return await fetchBytes(u); } catch { } } return null; }
   async function boot() {
     let expBytes = null;
-    try { expBytes = await fetchBytes('LDST97_F.EXP'); } catch { }
-    if (!expBytes) { const b = lsGet(LS.exp); if (b) expBytes = b64ToBytes(b); }
+    const b = lsGet(LS.exp); if (b) expBytes = b64ToBytes(b);
+    if (!expBytes) { status('正在下载资源文件…'); expBytes = await fetchFirst(EXP_URLS); }
     if (!expBytes) { showDrop('找不到 LDST97_F.EXP：把原版的 LDST97_F.EXP 拖到这里（或点击选择文件）。文件只保存在你的浏览器里。'); return; }
     await start(expBytes);
   }
@@ -54,7 +58,7 @@
     board = new Board(exp, b64ToBytes(BUTTONS_B64));
     // 存档：浏览器里的 > 同目录原版 LDST97_F.DAT > 空档
     let dat = null; const saved = lsGet(LS.dat);
-    if (saved) dat = b64ToBytes(saved); else { try { dat = await fetchBytes('LDST97_F.DAT'); } catch { } }
+    if (saved) dat = b64ToBytes(saved); else dat = await fetchFirst(DAT_URLS);
     board.loadNvram(dat);
     loadSettings(); applySettings(); buildMenus();
     hideDrop(); running = true; lastTime = performance.now(); acc = 0;

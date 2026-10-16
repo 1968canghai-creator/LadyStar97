@@ -5,7 +5,7 @@
 
 ## 怎么玩
 
-1. 打开页面。若同目录有 `LDST97_F.EXP` 会自动加载；否则页面会提示你把**原版的 `LDST97_F.EXP`** 拖进来（或点击选择文件）。
+1. 打开页面，资源文件会自动下载（约 0.5 MB）；取不到时页面会提示把**原版的 `LDST97_F.EXP`** 拖进来（或点击选择文件），
    文件只保存在你自己的浏览器里（localStorage），下次打开不用再拖。
 2. 先点一下画面（浏览器要求用户点击后才能出声）。
 3. 上分 F2 → 按「押」加押分（最低 49）→「開始」转动。中奖后 TAKE SCORE / DOUBLE UP 闪动时按「比倍」猜大小，或按「得分」收分。
@@ -35,8 +35,9 @@ python -m http.server 8097
 
 然后打开 http://localhost:8097/ 。直接双击 `index.html`（file://）时无法自动读取同目录的 EXP，但拖入文件仍可用。
 
-**关于资源文件**：`LDST97_F.EXP` / `LDST97_F.DAT` 是原版游戏的资源，本仓库不包含它们（见 `.gitignore`）。
-访客需要自己提供一份 EXP；若你把它们与 `index.html` 放在同一目录，页面会自动加载。
+**关于资源文件**：`LDST97_F.EXP` / `LDST97_F.DAT` 是原版游戏的资源，本仓库不包含它们（见 `.gitignore`），
+而是放在另一个仓库 [LadyStar97EXP](https://github.com/1968canghai-creator/LadyStar97EXP) 并通过 GitHub Pages 提供。
+页面按 同目录 → `../LadyStar97EXP/` → `https://1968canghai-creator.github.io/LadyStar97EXP/` 的顺序查找，都取不到时才提示拖入。
 
 ## 构建
 
