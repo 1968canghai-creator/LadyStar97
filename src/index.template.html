@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>明星97 水果机</title>
+<meta name="description" content="明星97 水果机（LADYSTAR97）网页版模拟器：复用原版 LDST97_F.EXP 显示资源与 Z80 程序，存档保存在浏览器里。">
+<style>
+  :root { --bg: #111; --bar: #1e1e1e; --fg: #ddd; --accent: #e6b422; --panel: #262626; --border: #444; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 14px/1.4 "Microsoft YaHei", "PingFang SC", system-ui, sans-serif; overflow: hidden; touch-action: manipulation; }
+  #bar { height: 40px; background: var(--bar); display: flex; align-items: center; gap: 8px; padding: 0 10px; border-bottom: 1px solid var(--border); }
+  #bar h1 { font-size: 15px; margin: 0 8px 0 0; font-weight: 600; color: var(--accent); white-space: nowrap; }
+  #bar button, #menu button, #help button { background: #333; color: var(--fg); border: 1px solid var(--border); border-radius: 4px; padding: 4px 10px; cursor: pointer; font: inherit; }
+  #bar button:hover, #menu button:hover { background: #444; }
+  #status { flex: 1; font-size: 12px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+  #wrap { position: absolute; top: 40px; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; }
+  #screen { image-rendering: pixelated; image-rendering: crisp-edges; background: #000; touch-action: none; }
+  #menu { position: absolute; top: 40px; left: 0; width: 320px; max-width: 100%; bottom: 0; background: var(--panel); border-right: 1px solid var(--border); overflow-y: auto; padding: 10px 12px 30px; transform: translateX(-100%); transition: transform .15s; z-index: 5; }
+  #menu.open { transform: none; }
+  #menu h2 { font-size: 13px; color: var(--accent); margin: 12px 0 6px; border-bottom: 1px solid var(--border); padding-bottom: 3px; }
+  #menu label { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 3px 0; }
+  #menu label.chk { justify-content: flex-start; }
+  #menu select, #menu input { background: #333; color: var(--fg); border: 1px solid var(--border); border-radius: 3px; padding: 2px 4px; font: inherit; }
+  #menu .row { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+  #menu small { color: #999; }
+  #drop { position: absolute; inset: 40px 0 0 0; background: rgba(0,0,0,.88); display: flex; align-items: center; justify-content: center; text-align: center; padding: 30px; cursor: pointer; z-index: 10; }
+  #drop div { max-width: 520px; border: 2px dashed var(--accent); border-radius: 10px; padding: 30px; }
+  #help { position: absolute; inset: 40px 0 0 0; background: rgba(0,0,0,.9); overflow-y: auto; padding: 20px; z-index: 9; }
+  #help .box { max-width: 640px; margin: 0 auto; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; }
+  #help table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+  #help td { border-bottom: 1px solid var(--border); padding: 4px 6px; vertical-align: top; }
+  .hidden { display: none !important; }
+  @media (max-width: 600px) { #bar h1 { display: none; } #status { display: none; } }
+</style>
+</head>
+<body>
+<div id="bar">
+  <h1>明星97 水果机</h1>
+  <button id="menuBtn">菜单</button>
+  <button id="helpBtn">按键说明</button>
+  <span id="status">正在加载…</span>
+</div>
+<div id="wrap"><canvas id="screen" width="1024" height="768"></canvas></div>
+
+<div id="menu">
+  <h2>机台</h2>
+  <div class="row"><button id="keyIn">上分 Key In (F2)</button><button id="keyOut">洗分 Key Out (F3)</button></div>
+  <label class="chk"><input type="checkbox" id="svcSetting"> 设置开关 Setting (F4)</label>
+  <label class="chk"><input type="checkbox" id="svcAccount"> 账目开关 Account (F5)</label>
+  <label class="chk"><input type="checkbox" id="autoStop"> 快速自动停轮（非原版行为）</label>
+  <label class="chk"><input type="checkbox" id="cardFace"> 比倍翻牌显示完整牌面（启用 ROM 内置牌面子程序）</label>
+  <label class="chk"><input type="checkbox" id="maxBet80"> 最高押分「80」档真正限制在 80（原版可押到 99）</label>
+  <div class="row"><button id="softReset">软复位（保存并重启主板）</button><button id="fullscreen">全屏 (F11)</button></div>
+
+  <h2>机台设定</h2>
+  <small>与原版一样，改动后主板复位才生效：这里改完自动复位。</small>
+  <div id="dipFields"></div>
+  <h2>原始拨码开关（十六进制）</h2>
+  <div id="rawDip"></div>
+  <div class="row"><button id="dipDefault">恢复默认（原版出厂拨码，但开比倍）</button></div>
+
+  <h2>存档</h2>
+  <small>分数和设定保存在这个浏览器里，每 5 秒和离开页面时写入。可导出为桌面版通用的文件。</small>
+  <div class="row"><button id="exportDat">导出 LDST97_F.DAT</button><button id="exportSet">导出 设定.txt</button></div>
+  <div class="row"><button id="importBtn">导入 EXP / DAT / 设定…</button><button id="clearSave">清空存档</button></div>
+  <input type="file" id="filepick" multiple accept=".exp,.dat,.txt,.EXP,.DAT,.TXT" class="hidden">
+</div>
+
+<div id="drop" class="hidden"><div><p id="dropmsg"></p><p><small>也可以把 LDST97_F.DAT（原版初始存档）一起拖入。</small></p></div></div>
+
+<div id="help" class="hidden"><div class="box">
+  <h3>按键说明</h3>
+  <p>底部按钮可用鼠标或手指点：<b>单击触动，双击锁住</b>（再双击解锁），与原版鼠标模式相同。键盘：</p>
+  <table>
+    <tr><td>大 / 比倍 / 小</td><td>小键盘 4 / 5 / 6，或 A / S / D</td></tr>
+    <tr><td>停A / 停B / 停C</td><td>小键盘 1 / 2 / 3，或 Z / X / C</td></tr>
+    <tr><td>全停</td><td>小键盘 .，或 V</td></tr>
+    <tr><td>得分</td><td>小键盘 0，或 T</td></tr>
+    <tr><td>開始</td><td>小键盘 Enter / Enter / 空格</td></tr>
+    <tr><td>押</td><td>小键盘 +，或 B</td></tr>
+    <tr><td>上分 / 洗分</td><td>F2 / F3</td></tr>
+    <tr><td>设置开关 / 账目开关</td><td>F4 / F5（设置开关打开时可看原版「開關設定說明」画面）</td></tr>
+    <tr><td>全屏</td><td>F11</td></tr>
+  </table>
+  <p>玩法：先上分（F2），按「押」加押分到最低押分以上，按「開始」转动；中奖后等 TAKE SCORE / DOUBLE UP 闪动时按「比倍」猜大小或按「得分」收分。</p>
+  <p>声音需要先点一下画面或按任意游戏键（浏览器限制）。</p>
+  <p><button id="helpClose">关闭</button></p>
+</div></div>
+
+<script>const BUTTONS_B64 = "__BUTTONS_B64__";</script>
+<script>__Z80_JS__</script>
+<script>__BOARD_JS__</script>
+<script>__APP_JS__</script>
+</body>
+</html>
