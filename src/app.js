@@ -11,8 +11,9 @@
   const LS = { dat: 'ldst97.dat', set: 'ldst97.settings', exp: 'ldst97.exp' };
   let board = null, running = false, lastTime = 0, acc = 0;
   let audioCtx = null, audioNode = null;
-  const audioRing = new Float32Array(44100); let ringW = 0, ringR = 0, ringCount = 0;
-  const frameAudio = new Float32Array(735);
+  let audioRing = new Float32Array(44100), ringW = 0, ringR = 0, ringCount = 0;
+  let frameAudio = new Float32Array(735), samplesPerFrame = 735, sampleRate = 44100;
+  const AY_CLOCK = 1497669.0;
   const settings = { autoStop: false, cardFace: true, maxBet80: true };
   // 管理模式：地址带 ?admin 才显示菜单（机台设定、洗分、开关、存档管理等）；普通访客只有上分和游戏按键
   const ADMIN = new URLSearchParams(location.search).has('admin');
@@ -59,6 +60,7 @@
     catch (e) { showDrop('EXP 解码失败：' + e.message + '，请换正确的 LDST97_F.EXP 再拖入。'); return; }
     lsSet(LS.exp, bytesToB64(expBytes));
     board = new Board(exp, b64ToBytes(BUTTONS_B64));
+    board.ay.cyclesPerSample = AY_CLOCK / sampleRate;
     // 存档：浏览器里的 > 同目录原版 LDST97_F.DAT > 空档
     let dat = null; const saved = lsGet(LS.dat);
     if (saved) dat = b64ToBytes(saved); else if (ADMIN) dat = await fetchFirst(DAT_URLS);   // 访客不用原版旧账，从 0 分冷启动后自动送分
@@ -114,8 +116,8 @@
     frameTotal++;
     if (!ADMIN) autoCredit();
     board.runFrame();
-    board.ay.render(frameAudio, 0, 735);
-    if (audioCtx) { for (let i = 0; i < 735 && ringCount < audioRing.length; i++) { audioRing[ringW] = frameAudio[i]; ringW = (ringW + 1) % audioRing.length; ringCount++; } }
+    board.ay.render(frameAudio, 0, samplesPerFrame);
+    if (audioCtx) { for (let i = 0; i < samplesPerFrame && ringCount < audioRing.length; i++) { audioRing[ringW] = frameAudio[i]; ringW = (ringW + 1) % audioRing.length; ringCount++; } }
   }
   function present() {
     board.renderFrame();
@@ -153,15 +155,37 @@
   if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
   document.addEventListener('fullscreenchange', () => setTimeout(resize, 100));
 
-  // ---- 声音 ----
-  function initAudio() {
-    if (audioCtx) return;
+  // ---- 声音（必须在用户手势里初始化；iOS 还要一个静音 <audio> 把页面切到媒体播放类别，否则跟随静音拨杆）----
+  let silentEl = null;
+  function unlockIOS() {
     try {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
+      if (!silentEl) {
+        // 0.1 秒静音 WAV（8 kHz 单声道）
+        const n = 800, buf = new ArrayBuffer(44 + n), dv = new DataView(buf);
+        const w = (o, str) => { for (let i = 0; i < str.length; i++) dv.setUint8(o + i, str.charCodeAt(i)); };
+        w(0, 'RIFF'); dv.setUint32(4, 36 + n, true); w(8, 'WAVE'); w(12, 'fmt '); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+        dv.setUint32(24, 8000, true); dv.setUint32(28, 8000, true); dv.setUint16(32, 1, true); dv.setUint16(34, 8, true); w(36, 'data'); dv.setUint32(40, n, true);
+        for (let i = 0; i < n; i++) dv.setUint8(44 + i, 128);
+        silentEl = document.createElement('audio'); silentEl.src = URL.createObjectURL(new Blob([buf], { type: 'audio/wav' })); silentEl.loop = true; silentEl.setAttribute('playsinline', ''); silentEl.volume = 0.01;
+      }
+      silentEl.play().catch(() => { });
+    } catch { }
+  }
+  function initAudio() {
+    if (audioCtx) { if (audioCtx.state === 'suspended') audioCtx.resume(); return; }
+    try {
+      unlockIOS();
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      sampleRate = audioCtx.sampleRate || 44100;
+      samplesPerFrame = Math.round(sampleRate / 60);
+      frameAudio = new Float32Array(samplesPerFrame); audioRing = new Float32Array(sampleRate); ringW = ringR = ringCount = 0;
+      if (board) board.ay.cyclesPerSample = AY_CLOCK / sampleRate;
+      // 手势内先放一个空缓冲，确保解锁
+      try { const src = audioCtx.createBufferSource(); src.buffer = audioCtx.createBuffer(1, 1, sampleRate); src.connect(audioCtx.destination); src.start(0); } catch { }
       audioNode = audioCtx.createScriptProcessor(2048, 0, 1);
       audioNode.onaudioprocess = e => {
         const out = e.outputBuffer.getChannelData(0);
-        if (ringCount > 44100 / 4) { const drop = ringCount - 4410; ringR = (ringR + drop) % audioRing.length; ringCount -= drop; }
+        if (ringCount > sampleRate / 4) { const drop = ringCount - Math.round(sampleRate / 10); ringR = (ringR + drop) % audioRing.length; ringCount -= drop; }
         for (let i = 0; i < out.length; i++) { if (ringCount > 0) { out[i] = audioRing[ringR]; ringR = (ringR + 1) % audioRing.length; ringCount--; } else out[i] = 0; }
       };
       audioNode.connect(audioCtx.destination);
@@ -190,6 +214,9 @@
   }
   function pointerUp() { if (board && mouseButton >= 0) board.releaseButton(mouseButton); mouseButton = -1; }
   canvas.addEventListener('pointerdown', pointerDown);
+  // iOS Safari 只把 touchend / click 当作可解锁音频的手势
+  for (const ev of ['touchend', 'click', 'keydown']) document.addEventListener(ev, () => initAudio(), { passive: true });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); });
   window.addEventListener('pointerup', pointerUp);
   window.addEventListener('pointercancel', pointerUp);
   canvas.addEventListener('contextmenu', e => e.preventDefault());
